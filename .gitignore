@@ -8,6 +8,8 @@ _build/
 !.github
 !.mailmap
 !.weblate.json
+!.gitmodules
+!.python-version
 # compiled python files
 *.py[co]
 __pycache__/
@@ -51,3 +53,10 @@ package.json
 /man/
 /share/
 /src/
+
+# Desktop build artifacts and local configuration
+!desktop/package.json
+/desktop/src-tauri/target/
+/desktop/src-tauri/runtime/*
+!/desktop/src-tauri/runtime/.gitkeep
+/requirements.txt

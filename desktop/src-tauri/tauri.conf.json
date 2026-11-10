@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Odoo Desktop",
+  "version": "0.1.0",
+  "identifier": "local.odoo.desktop",
+  "build": {
+    "frontendDist": "../assets"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "capabilities": [{"identifier":"transfer-local","windows":["transfer"],"permissions":["core:default"]}]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.png"],
+    "targets": ["appimage"],
+    "resources": { "runtime/": "runtime/", "../scripts/transfer_database.py": "transfer_database.py", "../scripts/backup_drive.py": "backup_drive.py", "../scripts/configure_report.py": "configure_report.py" },
+    "category": "Business",
+    "shortDescription": "Local Odoo with a remote PostgreSQL database"
+  }
+}

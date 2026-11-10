@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost">
+  <title>Backups</title>
+  <style>
+    :root { font: 15px/1.5 system-ui,sans-serif; color-scheme:light dark; color:#302a30; background:#f9f7f8; accent-color:#714b67; }
+    * { box-sizing:border-box; }
+    body { margin:0; }
+    main { max-width:44rem; margin:auto; padding:28px; }
+    h1 { font-size:1.6rem; margin:0 0 8px; }
+    h2 { font-size:1.1rem; margin:28px 0 8px; }
+    p { margin:0 0 16px; }
+    .muted, small { color:#685c67; }
+    .fields { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    label { display:block; font-weight:550; }
+    input,select { display:block; width:100%; margin-top:5px; padding:9px 10px; font:inherit; border:1px solid #9c929a; border-radius:4px; background:#fff; color:#302a30; }
+    .wide { grid-column:1/-1; }
+    button { font:inherit; font-weight:550; padding:9px 14px; border:1px solid #9c929a; border-radius:4px; color:inherit; background:transparent; cursor:pointer; }
+    button:hover { background:#eae4e8; }
+    button:disabled { opacity:.55; cursor:wait; }
+    :focus-visible { outline:2px solid #714b67; outline-offset:3px; }
+    .buttons { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+    .primary { color:#fff; background:#714b67; border-color:#714b67; }
+    .primary:hover { background:#603c57; }
+    .warning { background:#eee5d5; color:#544020; padding:14px; border-radius:4px; }
+    #status { white-space:pre-wrap; overflow-wrap:anywhere; margin-top:20px; padding-top:16px; border-top:1px solid #c8bdc6; }
+    #status[data-error=true] { color:#a32632; }
+    ::selection { background:#714b67; color:#fff; }
+    @media(max-width:580px) { .fields { grid-template-columns:1fr; } main { padding:20px; } }
+    @media(prefers-color-scheme:dark) {
+      :root { background:#231f23; color:#f4eff3; }
+      .muted,small { color:#c4b9c2; }
+      input,select { background:#302a30; color:#f4eff3; border-color:#82737f; }
+      button:hover { background:#453b43; }
+      .warning { background:#3c3323; color:#f0dbb6; }
+      #status[data-error=true] { color:#ffa6b0; }
+    }
+  </style>
+</head>
+<body><main>
+  <h1>Backups</h1>
+  <p class="muted">One ZIP containing your database and matching attachments. Desktop connection settings and Drive sign-in tokens are not included.</p>
+  <h2>Google Drive</h2>
+  <p id="google-status">Loading connection settings…</p>
+  <div class="buttons"><button type="button" id="configure">Choose Google client JSON…</button><button type="button" id="connect-drive">Sign in with Google…</button><button type="button" id="disconnect-drive">Disconnect</button><button type="button" id="cancel" hidden>Cancel sign-in</button></div>
+  <div id="signin-fallback" hidden>
+    <label>Google sign-in URL<input id="signin-url" readonly aria-describedby="signin-help"></label>
+    <p id="signin-help" class="muted">If no browser tab opened, select and copy this URL, then paste it into your browser. Keep Odoo open. The URL expires when sign-in finishes or times out.</p>
+  </div>
+  <details><summary>First-time Google setup</summary>
+    <ol>
+      <li>In Google Cloud Console, create/select a project and enable the Google Drive API.</li>
+      <li>Configure the OAuth consent screen. If in Testing mode, add your Google account as a test user.</li>
+      <li>Create an OAuth client of type <strong>Desktop app</strong> and download its JSON.</li>
+      <li>Choose that JSON above, then sign in in your usual browser.</li>
+    </ol>
+    <p class="muted">Testing-mode Google grants can expire after seven days. The app requests only access to Drive files it creates. Tokens are stored in a private file on this computer.</p>
+  </details>
+  <div class="buttons"><button type="button" id="drive-backup" class="primary">Back up to Google Drive…</button></div>
+  <p class="muted">Creates a new ZIP in <strong>Odoo Desktop backups</strong> on Drive, and retains a local copy. ZIPs contain sensitive business data and are not password-encrypted.</p>
+  <h2>Import a local ZIP</h2>
+  <p>Download a backup from Drive, then choose it here. Import supports ZIPs created by Odoo Desktop.</p>
+  <div class="buttons"><button type="button" id="choose">Choose backup ZIP…</button></div>
+  <p id="selected" class="muted">No ZIP selected.</p>
+  <p class="warning">Import replaces the local database <strong id="local-database"></strong> and its attachments. A complete recovery ZIP is saved first. Only import backups you trust.</p>
+  <label>Type the local database name to confirm replacement<input id="confirmation" autocomplete="off" spellcheck="false"></label>
+  <div class="buttons"><button type="button" id="zip-import">Import database and attachments…</button></div>
+  <small>Odoo pauses during backup/import. Keep this window open until completion. Closing Odoo normally stops its local server; no background backup service is installed.</small>
+  <div id="status" role="status" aria-live="polite">Ready.</div>
+</main><script src="transfer.js"></script></body>
+</html>

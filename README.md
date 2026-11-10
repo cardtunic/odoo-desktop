@@ -1,5 +1,12 @@
 # Odoo
 
+## Odoo Desktop for Linux
+
+Download the Linux x86_64 AppImage from the [latest release](https://github.com/cardtunic/odoo-desktop/releases/latest).
+See the [desktop guide](desktop/README.md) for configuration, prerequisites, backups, and build instructions.
+For development, install dependencies with `uv sync --locked`; `pyproject.toml` and `uv.lock` are the dependency source of truth.
+The desktop application lives on the `desktop` branch. Run `git submodule update --init --recursive` to fetch its pinned design themes before building.
+
 [![Build Status](https://runbot.odoo.com/runbot/badge/flat/1/master.svg)](https://runbot.odoo.com/runbot)
 [![Tech Doc](https://img.shields.io/badge/master-docs-875A7B.svg?style=flat&colorA=8F8F8F)](https://www.odoo.com/documentation/master)
 [![Help](https://img.shields.io/badge/master-help-875A7B.svg?style=flat&colorA=8F8F8F)](https://www.odoo.com/forum/help-1)

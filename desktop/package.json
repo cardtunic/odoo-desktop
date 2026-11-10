@@ -1,0 +1,14 @@
+{
+  "name": "odoo-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "uv run --project .. python scripts/build_linux.py",
+    "bundle": "uv run --project .. python scripts/build_linux.py --bundle-only",
+    "prepare-runtime": "uv run --project .. python scripts/prepare_runtime.py"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

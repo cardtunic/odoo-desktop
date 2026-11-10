@@ -1,0 +1,9 @@
+[options]
+db_host = YOUR_DIRECT_NEON_HOST
+db_port = 5432
+db_user = neondb_owner
+db_password = YOUR_DATABASE_PASSWORD
+db_name = neondb
+db_system = neondb
+db_sslmode = require
+list_db = False
