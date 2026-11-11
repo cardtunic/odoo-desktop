@@ -30,7 +30,7 @@ def response(data=None, code=200, headers=None):
 class ArchiveValidationTests(unittest.TestCase):
     def test_rejects_path_traversal_symlinks_and_aliases(self):
         for filename, symlink in [('../escape', False), ('filestore/../../escape', False), ('filestore//alias', False), ('filestore/link', True)]:
-            with self.subTest(filename=filename), tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 archive = root / 'unsafe.zip'
                 with zipfile.ZipFile(archive, 'w') as stream:
@@ -43,7 +43,7 @@ class ArchiveValidationTests(unittest.TestCase):
                 self.assertFalse((root / 'unpacked').exists())
 
     def test_checksums_are_required_and_checked(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             archive = root / 'broken.zip'
             manifest = dict(format='odoo-desktop-backup', format_version=1, odoo_version='20.0',
@@ -67,7 +67,7 @@ class GoogleTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs['env']['XDG_DATA_DIRS'], '/usr/share')
 
     def test_signin_checks_state_uses_pkce_and_saves_private_tokens(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             backup.write_private(root / 'google-client.json', {'installed':{'client_id':'test.apps.googleusercontent.com', 'client_secret':'test-secret'}})
             observed = {}
@@ -102,7 +102,7 @@ class GoogleTests(unittest.TestCase):
             self.assertEqual(json.loads(token.read_text())['refresh_token'], 'test-refresh')
 
     def test_uploads_in_chunks_and_requires_google_endpoint(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / 'backup.zip'
             archive.write_bytes(b'x' * (9 * 1024 * 1024))
             with patch.object(backup, 'access_token', return_value='test-access'), \
@@ -121,7 +121,7 @@ class ArchiveIntegrationTests(unittest.TestCase):
     tearDown = transfer_tests.TransactionTests.tearDown
 
     def test_complete_zip_roundtrip_restores_database_and_filestore(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source_store = root / 'source-store'
             source_store.mkdir()
@@ -148,7 +148,7 @@ class ArchiveIntegrationTests(unittest.TestCase):
                     self.assertEqual(cursor.fetchone(), ('snapshot',))
 
     def test_filestore_failure_recovers_original_database_and_files(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source_store = root / 'source'
             source_store.mkdir()

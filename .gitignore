@@ -10,6 +10,7 @@ _build/
 !.weblate.json
 !.gitmodules
 !.python-version
+!.dockerignore
 # compiled python files
 *.py[co]
 __pycache__/

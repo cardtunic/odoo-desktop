@@ -2,6 +2,7 @@
   "name": "odoo-desktop",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "tauri dev",
     "build": "uv run --project .. python scripts/build_linux.py",

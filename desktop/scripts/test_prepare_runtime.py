@@ -18,7 +18,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(builder.copy_ignore("", names), {"__pycache__", ".git", ".venv", "thing.pyc"})
 
     def test_only_app_source_is_staged(self):
-        with tempfile.TemporaryDirectory(dir="/tmp/opencode") as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root / "project"
             (source / "odoo").mkdir(parents=True)

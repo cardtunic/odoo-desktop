@@ -14,7 +14,7 @@ spec.loader.exec_module(installer)
 
 class InstallTests(unittest.TestCase):
     def test_installs_launcher_and_private_config_without_overwriting(self):
-        with tempfile.TemporaryDirectory(dir="/tmp/opencode") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             image = home / "test.AppImage"
             image.write_bytes(b"test")

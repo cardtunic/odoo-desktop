@@ -24,7 +24,7 @@ class TransferUnitTests(unittest.TestCase):
         self.assertEqual(environment['PGPASSWORD'], 'private-secret')
 
     def test_restore_uses_one_transaction_and_stops_on_error(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'source.sql'
             source.write_text('CREATE SCHEMA public;\n')
             payload = Path(directory) / 'restore.sql'
@@ -69,7 +69,7 @@ class TransactionTests(unittest.TestCase):
         self.admin.close()
 
     def test_replacement_removes_old_tables_and_loads_snapshot(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'source.sql'
             transfer.dump(self.source, source)
             transfer.replace(self.target, source, Path(directory) / 'restore.sql')
@@ -83,7 +83,7 @@ class TransactionTests(unittest.TestCase):
                 self.assertEqual(cur.fetchone(), ('pg_trgm',))
 
     def test_failed_restore_rolls_back_schema_drop(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'broken.sql'
             source.write_text('CREATE SCHEMA public; THIS IS INVALID SQL;')
             with self.assertRaises(RuntimeError):
@@ -102,7 +102,7 @@ class TransactionTests(unittest.TestCase):
     def check_workflow(self, action):
         local = self.source if action == 'backup' else self.target
         remote_settings = self.target if action == 'backup' else self.source
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             filestore = root / 'data/filestore' / local['dbname']
             filestore.mkdir(parents=True)

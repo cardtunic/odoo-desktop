@@ -41,6 +41,46 @@ Do not initialize an existing production database.
 
 ## Build an AppImage
 
+### Automatic builds
+
+GitHub Actions builds a Linux x86_64 AppImage on Ubuntu 24.04 after every
+branch push. You can also start **Build AppImage** manually from the Actions tab.
+The workflow runs the desktop unit tests, builds the app, extracts the AppImage,
+and smoke-tests its bundled Python/Odoo runtime without connecting to a database.
+
+Download the artifact from the completed Actions run. It contains the AppImage
+and `SHA256SUMS` and is retained for 14 days. These are development builds;
+the workflow does not create releases or replace the latest release.
+After extracting the artifact ZIP, restore executable permission with
+`chmod +x ./*.AppImage` and verify it with `sha256sum -c SHA256SUMS`.
+
+To reproduce the build on Ubuntu 24.04 with Node 24, pnpm 12.3.4, uv,
+and stable Rust installed, run from the repository root:
+
+```sh
+sudo bash .github/scripts/install-linux-deps.sh
+git submodule update --init --recursive
+bash .github/scripts/build-appimage.sh
+```
+
+Alternatively, from the repository root, test the same build in Docker
+(allow at least 12 GB of free disk space):
+
+```sh
+docker build -f .github/containers/appimage.Dockerfile -t odoo-desktop-builder .
+mkdir -p .ci-cache
+docker run --rm --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp/build-home -e UV_LINK_MODE=copy \
+  -v "$PWD/.ci-cache:/tmp/build-home" \
+  -v "$PWD:/workspace" odoo-desktop-builder
+```
+
+The container downloads build tools/dependencies and writes `.ci-cache`, `.venv`,
+`desktop/node_modules`, and `desktop/src-tauri/target` in your checkout.
+It does not mount your home directory or connect to your database.
+
+### Manual builds
+
 ```sh
 git submodule update --init --recursive
 cd desktop

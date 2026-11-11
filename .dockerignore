@@ -1,0 +1,4 @@
+**
+!.github/
+!.github/scripts/
+!.github/scripts/install-linux-deps.sh

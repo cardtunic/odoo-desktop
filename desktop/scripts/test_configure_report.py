@@ -13,7 +13,7 @@ class ReportUrlTests(unittest.TestCase):
                 configure_report.configure('/not/read', url)
 
     def test_only_updates_report_url_using_bound_parameters(self):
-        with tempfile.TemporaryDirectory(dir='/tmp/opencode') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'odoo.conf'
             path.write_text('[options]\ndb_name = example\ndb_user = example\ndb_password = secret\n')
             with patch.object(configure_report.psycopg2, 'connect') as connect:
