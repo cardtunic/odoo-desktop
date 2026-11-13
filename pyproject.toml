@@ -56,7 +56,7 @@ dependencies = [
     "requests==2.31.0 ; python_full_version >= '3.11'",
     "rjsmin==1.2.0 ; python_full_version >= '3.11'",
     "rl-renderpm==4.0.3 ; python_full_version >= '3.12' and sys_platform == 'win32'",
-    "tzdata>=2026.6 ; sys_platform == 'win32'",
+    "tzdata>=2026.6",
     "urllib3==2.0.7 ; python_full_version >= '3.12'",
     "vobject==0.9.6.1 ; python_full_version < '3.14'",
     "vobject==0.9.9 ; python_full_version >= '3.14'",

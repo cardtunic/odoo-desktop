@@ -57,10 +57,10 @@ class ArchiveValidationTests(unittest.TestCase):
 
 class GoogleTests(unittest.TestCase):
     def test_browser_does_not_inherit_appimage_library_or_python_settings(self):
-        with patch.dict(os.environ, {'PYTHONHOME':'unsafe', 'LD_LIBRARY_PATH':'unsafe', 'APPDIR':'/tmp/test-appimage', 'XAUTHORITY':'/run/user/1000/test-auth', 'DESKTOP_SESSION':'plasma', 'XDG_DATA_DIRS':'/tmp/test-appimage/usr/share:/usr/share'}), \
+        with patch.dict(os.environ, {'PYTHONHOME':'unsafe', 'LD_LIBRARY_PATH':'unsafe', 'MAGIC':'unsafe', 'ODOO_DESKTOP_NATIVE_BIN':'unsafe', 'APPDIR':'/tmp/test-appimage', 'XAUTHORITY':'/run/user/1000/test-auth', 'DESKTOP_SESSION':'plasma', 'XDG_DATA_DIRS':'/tmp/test-appimage/usr/share:/usr/share'}), \
              patch.object(backup.subprocess, 'run') as run:
             backup.open_browser('https://accounts.google.com/example')
-        for key in ('PYTHONHOME', 'LD_LIBRARY_PATH', 'APPDIR'):
+        for key in ('PYTHONHOME', 'LD_LIBRARY_PATH', 'APPDIR', 'MAGIC', 'ODOO_DESKTOP_NATIVE_BIN'):
             self.assertNotIn(key, run.call_args.kwargs['env'])
         self.assertEqual(run.call_args.kwargs['env']['XAUTHORITY'], '/run/user/1000/test-auth')
         self.assertEqual(run.call_args.kwargs['env']['DESKTOP_SESSION'], 'plasma')

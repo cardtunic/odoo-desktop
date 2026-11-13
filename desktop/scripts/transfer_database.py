@@ -1,4 +1,4 @@
-"""One-way, transactional Odoo public-schema replacement using local Docker PG clients.
+"""One-way, transactional Odoo public-schema replacement using PostgreSQL clients.
 
 Invoked only by the desktop's trusted settings window. Never logs passwords.
 """
@@ -43,20 +43,24 @@ def validate(settings, require_odoo=True):
 
 
 def client_command(settings, program, *arguments):
-    # The existing local PostgreSQL container supplies version-matched tools.
-    # Only environment variable NAMES, never password values, appear in argv.
-    env = os.environ.copy()
+    if program not in ('psql', 'pg_dump', 'pg_restore'):
+        raise ValueError('Unsupported PostgreSQL client.')
+    # Packaged helpers live beside runtime/. Development uses the staged runtime.
+    configured = os.environ.get('ODOO_DESKTOP_NATIVE_BIN')
+    if configured and not (Path(configured) / program).is_file():
+        raise RuntimeError('The bundled PostgreSQL client is missing. Reinstall the AppImage.')
+    candidates = ([Path(configured) / program] if configured else []) + [Path(__file__).resolve().parent / 'runtime/native/bin' / program,
+                  Path(__file__).resolve().parent.parent / 'src-tauri/runtime/native/bin' / program]
+    binary = next((str(path) for path in candidates if path.is_file()), None) or shutil.which(program)
+    if not binary:
+        raise RuntimeError('PostgreSQL client tools are missing. Build the native runtime first.')
+    env = {key: value for key, value in os.environ.items() if not key.startswith('PG')}
     values = dict(PGHOST=settings['host'], PGPORT=str(settings['port']),
                   PGDATABASE=settings['dbname'], PGUSER=settings['user'],
                   PGPASSWORD=settings['password'], PGSSLMODE=settings['sslmode'],
                   PGCONNECT_TIMEOUT='10', PGCHANNELBINDING='prefer')
-    # 127.0.0.1 inside odoo-db addresses the same local server as the host port.
     env.update(values)
-    command = ['docker', 'exec', '-i']
-    for key in values:
-        command.extend(['-e', key])
-    command.extend(['odoo-db', program, *arguments])
-    return command, env
+    return [binary, *arguments], env
 
 
 def run_client(settings, program, *args, stdin=None, stdout=None):
@@ -105,8 +109,8 @@ def main(action, config_path, remote_path, job_path):
         if action == 'test':
             status(progress, f'Connected to Odoo 20 on PostgreSQL {remote_version}.', done=True)
             return
-        if local['host'] not in ('127.0.0.1', 'localhost') or local['port'] != 5432:
-            raise ValueError('Transfers currently require the local odoo-db container published on port 5432.')
+        if local['host'] not in ('127.0.0.1', 'localhost'):
+            raise ValueError('Transfers require a local PostgreSQL database.')
         if remote['host'].lower() in ('localhost', '127.0.0.1', '::1'):
             raise ValueError('The remote destination must not point at the local database.')
         local_version = validate(local)
@@ -140,7 +144,7 @@ def main(action, config_path, remote_path, job_path):
         version = subprocess.check_output(command, env=env, text=True)
         client_major = int(version.split()[2].split('.')[0])
         if client_major < max(local_version, remote_version):
-            raise ValueError('The local container PostgreSQL client is older than one of the servers.')
+            raise ValueError('The PostgreSQL client is older than one of the servers.')
         status(progress, 'Saving a recovery dump of the destination before replacement…')
         dump(target, job / 'destination-before.sql')
         filestore = Path(options.get('data_dir', str(Path.home() / '.local/share/Odoo'))) / 'filestore' / local['dbname']

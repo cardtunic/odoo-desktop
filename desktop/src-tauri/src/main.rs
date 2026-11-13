@@ -14,11 +14,13 @@ use tauri_plugin_dialog::DialogExt;
 mod backups;
 mod downloads;
 mod file_dialog;
+mod database;
 
 #[derive(Default)]
 struct Backend {
     child: Mutex<Option<Child>>,
     stopping: AtomicBool,
+    ready: AtomicBool,
     port: AtomicU16,
 }
 
@@ -31,23 +33,10 @@ fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Er
         return Ok(path.canonicalize()?);
     }
     if cfg!(debug_assertions) {
-        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../odoo.conf").canonicalize()?);
+        let development = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../odoo.conf");
+        if development.is_file() { return Ok(development.canonicalize()?); }
     }
     let path = app.path().app_config_dir()?.join("odoo.conf");
-    if !path.is_file() {
-        fs::create_dir_all(path.parent().unwrap())?;
-        // Never copy credentials into the application bundle.
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        use std::io::Write;
-        options.open(&path)?.write_all(include_bytes!("../../odoo.conf.example"))?;
-        return Err(format!("Configure your database in {}, then reopen Odoo Desktop. No database is initialized automatically.", path.display()).into());
-    }
     Ok(path)
 }
 
@@ -64,6 +53,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<String, Box<dyn std::error::E
         options.mode(0o600);
     }
     let log = options.open(&log_path)?;
+    database::start(app, &config, &data, &log)?;
     let port = TcpListener::bind("127.0.0.1:0")?.local_addr()?.port();
     // Report renderers fetch CSS/images outside the browser. A URL left over
     // from a previous random port produces unstyled PDFs or missing images.
@@ -80,6 +70,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<String, Box<dyn std::error::E
         cmd.arg(resources.join("configure_report.py"));
         cmd
     };
+    database::environment(app, &mut report)?;
     let status = report.arg(&config).arg(format!("http://127.0.0.1:{port}"))
         .stdout(Stdio::from(log.try_clone()?)).stderr(Stdio::from(log.try_clone()?)).status()?;
     if !status.success() { return Err(format!("Could not configure PDF report resources. See {}", log_path.display()).into()); }
@@ -98,6 +89,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<String, Box<dyn std::error::E
         cmd.env("PYTHONPATH", runtime.join("app"));
         cmd
     };
+    database::environment(app, &mut command)?;
     command
         .arg("-c").arg(config)
         .arg("--http-interface=127.0.0.1")
@@ -138,6 +130,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<String, Box<dyn std::error::E
         }
         if let Ok(response) = client.get(format!("{url}/web/login")).send() {
             if response.status().is_success() || response.status().is_redirection() {
+                app.state::<Backend>().ready.store(true, Ordering::SeqCst);
                 return Ok(url);
             }
         }
@@ -149,6 +142,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<String, Box<dyn std::error::E
 fn stop_backend(app: &tauri::AppHandle) {
     let state = app.state::<Backend>();
     state.stopping.store(true, Ordering::SeqCst);
+    state.ready.store(false, Ordering::SeqCst);
     let child = state.child.lock().unwrap().take();
     if let Some(mut child) = child {
         if matches!(child.try_wait(), Ok(Some(_))) { return; }
@@ -177,6 +171,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(Backend::default())
+        .manage(database::Database::default())
         .manage(backups::Backups::default())
         .invoke_handler(tauri::generate_handler![backups::backup_settings, backups::configure_google, backups::choose_backup_zip, backups::backup_status, backups::cancel_google_signin, backups::run_backup])
         .menu(|app| {
@@ -199,6 +194,7 @@ fn main() {
                     if let Some(transfer) = app.get_webview_window("transfer") { let _ = transfer.set_focus(); }
                 } else if window.label() == "main" {
                     stop_backend(app);
+                    database::stop(app);
                     if let Some(transfer) = app.get_webview_window("transfer") { let _ = transfer.close(); }
                 }
             }
@@ -236,10 +232,19 @@ fn main() {
                 // Do not leave a dead desktop window if the backend later exits.
                 loop {
                     thread::sleep(Duration::from_secs(2));
+                    if !handle.state::<Backend>().stopping.load(Ordering::SeqCst) && !database::running(&handle).unwrap_or(false) {
+                        handle.dialog().message("The database service stopped. Close the app and check odoo.log. Your database files have been preserved.")
+                            .title("Odoo Desktop stopped").blocking_show();
+                        handle.exit(1);
+                        return;
+                    }
                     let status = {
                         let state = handle.state::<Backend>();
                         let mut guard = state.child.lock().unwrap();
-                        let Some(child) = guard.as_mut() else { return; };
+                        let Some(child) = guard.as_mut() else {
+                            if backups::active(&handle) { continue; }
+                            return;
+                        };
                         child.try_wait()
                     };
                     if let Ok(Some(status)) = status {
@@ -260,6 +265,7 @@ fn main() {
         }
         if matches!(event, tauri::RunEvent::Exit) {
             stop_backend(app);
+            database::stop(app);
         }
     });
 }

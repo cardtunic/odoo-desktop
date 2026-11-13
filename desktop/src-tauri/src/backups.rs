@@ -122,6 +122,9 @@ pub fn cancel_signin(app: &tauri::AppHandle) {
 pub async fn run_backup(window: WebviewWindow, app: tauri::AppHandle, action: String, confirmation: String) -> Result<(), String> {
     trusted(&window)?;
     if !["connect-drive", "disconnect-drive", "drive-backup", "zip-import"].contains(&action.as_str()) { return Err("Unknown backup action.".into()); }
+    if ["drive-backup", "zip-import"].contains(&action.as_str()) && !app.state::<super::Backend>().ready.load(Ordering::SeqCst) {
+        return Err("Wait for Odoo to finish starting before backing up or importing data.".into());
+    }
     if app.state::<Backups>().active.swap(true, Ordering::SeqCst) { return Err("A backup operation is already running.".into()); }
     let result = prepare(&app, &action, &confirmation).await;
     if result.is_err() { app.state::<Backups>().active.store(false, Ordering::SeqCst); }
@@ -185,6 +188,7 @@ async fn prepare(app: &tauri::AppHandle, action: &str, confirmation: &str) -> Re
                 cmd.arg(resources.join("backup_drive.py"));
                 cmd
             };
+            super::database::environment(&handle, &mut command).map_err(|e| e.to_string())?;
             let output = command.arg(&action).arg(config).arg(directory).arg(&job)
                 .arg(archive.unwrap_or_default()).env("PYTHONNOUSERSITE", "1").stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
             let finished = fs::read(&progress).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())

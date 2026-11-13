@@ -3,8 +3,10 @@
 A native WebKit window around the existing Odoo UI. The window opens immediately
 with a startup message while Rust starts a private, loopback-only Odoo process.
 Once ready, the same window loads Odoo. Closing the window, including during
-startup, cancels startup and stops Odoo; there is no tray/background mode.
-It never creates, migrates, or initializes a database automatically.
+startup, cancels startup and stops Odoo and its managed PostgreSQL server;
+there is no tray/background mode. Fresh installs initialize their own private
+local database. Existing database configurations are never initialized,
+migrated, or replaced automatically.
 Only one desktop instance is allowed. Odoo pages have no Tauri IPC permissions.
 
 ## Development
@@ -23,14 +25,18 @@ pnpm install
 pnpm dev
 ```
 
-Development uses the repository's `odoo.conf`. You can override it with an
+Development uses the repository's `odoo.conf` when present; otherwise it uses
+the same private managed configuration as packaged builds. For a new managed
+installation, stage the native runtime with `pnpm build` in the Ubuntu build
+environment first. You can override the config with an
 absolute path, in both development and packaged builds:
 
 ```sh
 ODOO_DESKTOP_CONFIG=/absolute/path/to/odoo.conf pnpm dev
 ```
 
-The database must already contain a compatible Odoo installation. For a **new,
+An externally configured database must already contain a compatible Odoo
+installation. For a **new,
 empty** database only, initialize separately from the repository root:
 
 ```sh
@@ -43,10 +49,18 @@ Do not initialize an existing production database.
 
 ### Automatic builds
 
+The original `v0.1.0` release predates native dependency bundling. Use a build
+artifact from the updated `desktop` branch until a new release is published.
+
 GitHub Actions builds a Linux x86_64 AppImage on Ubuntu 24.04 after every
 branch push. You can also start **Build AppImage** manually from the Actions tab.
 The workflow runs the desktop unit tests, builds the app, extracts the AppImage,
-and smoke-tests its bundled Python/Odoo runtime without connecting to a database.
+and tests its bundled Python/Odoo runtime. An isolated disposable PostgreSQL
+cluster exercises first-run initialization, authentication, persistence,
+ZIP backup/restore, transactional rollback, and shutdown. PDF and PNG rendering
+are also checked. No existing database or user configuration is used.
+CI repeats the runtime checks in a minimal Ubuntu container with networking
+disabled, to catch dependencies accidentally supplied by the build runner.
 
 Download the artifact from the completed Actions run. It contains the AppImage
 and `SHA256SUMS` and is retained for 14 days. These are development builds;
@@ -63,19 +77,24 @@ git submodule update --init --recursive
 bash .github/scripts/build-appimage.sh
 ```
 
+Set `ODOO_TEST_MINIMAL_RUNTIME=1` when running that script on a Docker-enabled
+host to also run CI's minimal-container runtime check.
+
 Alternatively, from the repository root, test the same build in Docker
 (allow at least 12 GB of free disk space):
 
 ```sh
 docker build -f .github/containers/appimage.Dockerfile -t odoo-desktop-builder .
 mkdir -p .ci-cache
-docker run --rm --user "$(id -u):$(id -g)" \
+docker run --rm --cpus=2 --user "$(id -u):$(id -g)" \
   -e HOME=/tmp/build-home -e UV_LINK_MODE=copy \
   -v "$PWD/.ci-cache:/tmp/build-home" \
   -v "$PWD:/workspace" odoo-desktop-builder
 ```
 
-The container downloads build tools/dependencies and writes `.ci-cache`, `.venv`,
+The local container is limited to two CPU cores, including AppImage compression,
+so packaging does not consume every host core. It downloads build
+tools/dependencies and writes `.ci-cache`, `.venv`,
 `desktop/node_modules`, and `desktop/src-tauri/target` in your checkout.
 It does not mount your home directory or connect to your database.
 
@@ -92,6 +111,12 @@ The build script stages a uv-managed, relocatable CPython 3.14 runtime,
 installs the locked dependencies, copies Odoo source/assets, and smoke-tests
 `python -m odoo --help`. This can download hundreds of megabytes and may require
 native build dependencies for packages such as python-ldap and psycopg2.
+It builds PostgreSQL 18.6 from checksum-pinned upstream source (including
+`pg_trgm` and `unaccent`) and bundles patched-Qt wkhtmltopdf/wkhtmltoimage
+0.12.6.1-3, fonts, client tools, and their shared libraries. Downloads are
+verified against pinned SHA-256 checksums; source URLs and license notices are
+included under `runtime/native`. Native packaging targets Ubuntu 24.04 x86_64;
+use the Docker builder above when developing on another distro.
 It exposes wheel-private shared library paths to linuxdeploy during packaging.
 To retry packaging without compiling/staging again, run `pnpm bundle`.
 The resulting app does not require uv, system Python, or a checkout of this repo.
@@ -104,32 +129,50 @@ nightly distribution. Its design themes are a pinned upstream Git submodule,
 not a second copy of the source. Both upstream layouts are merged into the
 bundled runtime's `odoo/addons` directory during packaging.
 
-Install the result for your user, copy your existing config on first install,
+Install the result for your user and
 and register it with KDE/KRunner:
 
 ```sh
 uv run --project .. python scripts/install_linux.py \
-  src-tauri/target/release/bundle/appimage/*.AppImage --config ../odoo.conf
+  src-tauri/target/release/bundle/appimage/*.AppImage
 ```
 
 This installs `~/AppImages/Odoo-Desktop.AppImage` and
 `~/.local/share/applications/odoo-desktop.desktop`. Search KRunner for
 **Odoo Desktop**. Reinstalling preserves an existing private configuration.
+To use an existing database instead, add `--config ../odoo.conf` on first
+installation. Never copy another installation's managed metadata without also
+restoring its matching database and attachments.
 
-**Portability needs release testing:** this first target is Linux on the build
-machine's architecture. Build on the oldest distro you intend to support. Python
-extensions may depend on system libraries (for example libpq, LDAP, and libmagic)
-that Tauri does not automatically discover inside Python. Test on a clean target
-machine and package those dependencies before distributing as fully standalone.
-PDF reports may separately need a supported wkhtmltopdf installation. Windows
-and macOS runtime packaging are not implemented.
+**Portability:** the x86_64 AppImage bundles PostgreSQL, PDF renderers, fonts,
+libpq, LDAP, libmagic (including its database), and scanned shared-library
+dependencies. It still requires a compatible Linux desktop, glibc (Ubuntu 24.04
+or newer baseline), and desktop portal services. No glibc/loader is bundled.
+Windows and macOS runtime packaging are not implemented.
 
 ## Configuration, data, and diagnostics
 
-On first packaged launch, a credentials-free config template is written to
+On first launch without an existing config, private credentials are generated at
 `$XDG_CONFIG_HOME/local.odoo.desktop/odoo.conf` (normally
-`~/.config/local.odoo.desktop/odoo.conf`). A dialog tells you to edit it and reopen
-the app. The config and log are created with owner-only permissions on Linux.
+`~/.config/local.odoo.desktop/odoo.conf`). A matching `odoo.conf.managed.json`
+records ownership and recovery credentials. Both files are owner-readable only.
+The app initializes a new PostgreSQL cluster and Odoo database, listens only on
+127.0.0.1 with a random available port and SCRAM authentication, and gives Odoo
+a non-superuser database role. The initial web login is `admin` with a random
+password shown once in a dialog and saved privately in `first-login.txt` beside
+the config. Change it in Odoo and delete that file afterward.
+
+The cluster lives at `$XDG_DATA_HOME/local.odoo.desktop/postgres/cluster`;
+managed Odoo sessions/attachments live under the sibling `odoo` directory.
+Neither is inside the AppImage. Updating the app preserves them. A file lock
+prevents concurrent ownership, and mismatched PostgreSQL major versions or
+incomplete databases fail safely rather than being erased or auto-upgraded.
+Keep the private configuration/metadata with a backup. Never delete the cluster
+to resolve a startup error; check `odoo.log` and restore or migrate explicitly.
+
+Existing external configs are left untouched: no new cluster, initialization,
+or migration is performed for them. For an external database, copy a configured
+file before first launch or set `ODOO_DESKTOP_CONFIG` to an existing file.
 For Neon, use the **direct** host, not the `-pooler` host, and `db_sslmode = require`.
 For local PostgreSQL, use `db_host = 127.0.0.1`, its local database/user/password,
 and `db_sslmode = disable` if that local server has SSL disabled. The launcher
@@ -153,9 +196,9 @@ is provided.
 
 ### Reports and downloads
 
-PDF reports require a supported patched-Qt `wkhtmltopdf` installation. Set
-`bin_path` in your private `odoo.conf` to the directory containing it and
-`wkhtmltoimage`. These renderers are not included in the AppImage.
+Patched-Qt `wkhtmltopdf` and `wkhtmltoimage` are bundled and exposed to Odoo
+through an app-local PATH. No separate installation or `bin_path` is needed.
+An explicitly configured external `bin_path` retains Odoo's normal precedence.
 
 The app allows downloads from its own backend, including Odoo's generated blob
 URLs. Files are staged privately under the desktop data directory; once the
@@ -248,8 +291,10 @@ If automatic recovery fails, Odoo is left stopped and the recovery path is shown
 Odoo pauses during backup/import and restarts afterward. Close is temporarily
 blocked during an operation so no job continues invisibly. No background backup
 service is installed. Do not use other Odoo clients during these operations.
-The existing `odoo-db` Docker container provides PostgreSQL tools; local
-PostgreSQL must be on port 5432. Sources must be Odoo 20 with a single `public`
+Bundled PostgreSQL client tools handle backups without Docker or system
+PostgreSQL clients. The app-managed server stays running while Odoo pauses for
+backup/import, and stops when the desktop closes. Existing local servers are
+also supported; no fixed port is required. Sources must be Odoo 20 with a single `public`
 user schema. Importing from a newer PostgreSQL major into an older one is
 rejected. Database roles, ownership, and grants are not copied.
 

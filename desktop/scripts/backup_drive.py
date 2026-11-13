@@ -48,8 +48,8 @@ def local_settings(config_path):
                     sslmode=options.get('db_sslmode', 'prefer'))
     if settings['dbname'] in ('', '.', '..') or '/' in settings['dbname'] or '\\' in settings['dbname']:
         raise ValueError('The configured database name cannot be used as a safe filestore directory.')
-    if settings['host'] not in ('localhost', '127.0.0.1') or settings['port'] != 5432:
-        raise ValueError('Backups currently require the local odoo-db container on port 5432.')
+    if settings['host'] not in ('localhost', '127.0.0.1'):
+        raise ValueError('Backups require a local PostgreSQL database.')
     store = Path(options.get('data_dir', str(Path.home() / '.local/share/Odoo'))) / 'filestore' / settings['dbname']
     return settings, store
 
@@ -223,7 +223,7 @@ def open_browser(url):
     # can make KDE report success while the actual browser cannot open a window.
     environment = os.environ.copy()
     appdir = environment.get('APPDIR', '')
-    for key in ('PYTHONHOME', 'PYTHONPATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD', 'APPDIR', 'APPIMAGE', 'ARGV0',
+    for key in ('PYTHONHOME', 'PYTHONPATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD', 'APPDIR', 'APPIMAGE', 'ARGV0', 'MAGIC', 'ODOO_DESKTOP_NATIVE_BIN',
                 'GDK_PIXBUF_MODULE_FILE', 'GDK_PIXBUF_MODULEDIR', 'GIO_MODULE_DIR', 'GI_TYPELIB_PATH',
                 'GTK_PATH', 'GTK_EXE_PREFIX', 'GTK_DATA_PREFIX', 'GST_PLUGIN_PATH', 'GST_PLUGIN_SYSTEM_PATH',
                 'GST_PLUGIN_SCANNER', 'WEBKIT_EXEC_PATH', 'WEBKIT_INJECTED_BUNDLE_PATH'):

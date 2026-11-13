@@ -17,8 +17,8 @@
     "active": true,
     "icon": ["icons/icon.png"],
     "targets": ["appimage"],
-    "resources": { "runtime/": "runtime/", "../scripts/transfer_database.py": "transfer_database.py", "../scripts/backup_drive.py": "backup_drive.py", "../scripts/configure_report.py": "configure_report.py" },
+    "resources": { "runtime/": "runtime/", "../scripts/transfer_database.py": "transfer_database.py", "../scripts/backup_drive.py": "backup_drive.py", "../scripts/configure_report.py": "configure_report.py", "../scripts/managed_database.py": "managed_database.py" },
     "category": "Business",
-    "shortDescription": "Local Odoo with a remote PostgreSQL database"
+    "shortDescription": "Local Odoo with bundled PostgreSQL and PDF reports"
   }
 }

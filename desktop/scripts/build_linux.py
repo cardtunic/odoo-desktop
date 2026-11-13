@@ -6,13 +6,18 @@ import subprocess
 import sys
 
 from prepare_runtime import DESKTOP, DESTINATION, stage
+from native_dependencies import stage as stage_native
 
 
 def main() -> None:
     bundle_only = "--bundle-only" in sys.argv[1:]
     if not bundle_only:
         stage()
+        stage_native(DESTINATION)
+    if not (DESTINATION / 'native/bin/postgres').is_file():
+        raise SystemExit('Native runtime is missing. Run pnpm build before pnpm bundle.')
     libraries = [DESTINATION / "python/lib"]
+    libraries += [DESTINATION / 'native/lib', DESTINATION / 'native/postgres/lib']
     for packages in (DESTINATION / "python/lib").glob("python*/site-packages"):
         libraries.extend(path for path in packages.glob("*.libs") if path.is_dir())
     environment = os.environ.copy()

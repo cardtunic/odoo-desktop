@@ -19,8 +19,10 @@ spec.loader.exec_module(transfer)
 class TransferUnitTests(unittest.TestCase):
     def test_password_never_appears_in_command_arguments(self):
         settings = dict(host='example.test', port=5432, dbname='sample', user='sample', password='private-secret', sslmode='require')
-        command, environment = transfer.client_command(settings, 'pg_dump', '--no-owner')
+        with patch.object(transfer.shutil, 'which', return_value='/usr/bin/pg_dump'):
+            command, environment = transfer.client_command(settings, 'pg_dump', '--no-owner')
         self.assertNotIn('private-secret', ' '.join(command))
+        self.assertNotIn('docker', command)
         self.assertEqual(environment['PGPASSWORD'], 'private-secret')
 
     def test_restore_uses_one_transaction_and_stops_on_error(self):
